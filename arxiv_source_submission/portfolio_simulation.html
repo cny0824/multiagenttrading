@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semiconductor 10-Stock Portfolio · Monte Carlo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f5f7fa; --white:#fff; --border:#e2e8f0; --border2:#cbd5e1;
+    --text:#1e293b; --mid:#475569; --soft:#94a3b8;
+    --bull:#16a34a; --base:#2563eb; --bear:#dc2626; --purple:#7c3aed;
+    --r:12px; --sh:0 1px 3px rgba(0,0,0,0.07);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Inter','Noto Sans SC',sans-serif;font-size:14px;line-height:1.5;}
+
+  /* HEADER */
+  header{background:var(--white);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;}
+  .htitle{font-size:17px;font-weight:700;letter-spacing:-.3px;}
+  .hsub{font-size:11px;color:var(--soft);margin-top:2px;}
+  .hright{display:flex;align-items:center;gap:20px;}
+  .spill .sl{font-size:10px;color:var(--soft);}
+  .spill .sv{font-size:16px;font-weight:700;}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;color:var(--bull);font-size:11px;font-weight:600;}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:var(--bull);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .main{padding:18px 28px;display:grid;gap:14px;}
+
+  /* 5-col grid */
+  .hrow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  .hc{background:var(--white);border:1px solid var(--border);border-left:4px solid #ccc;border-radius:10px;padding:11px 13px;box-shadow:var(--sh);}
+  .hc .zh{font-family:'Noto Sans SC';font-size:13px;font-weight:700;}
+  .hc .en{font-size:9px;color:var(--soft);}
+  .hc .sh{font-size:9px;color:var(--soft);margin-top:1px;}
+  .hc .amt{font-size:15px;font-weight:700;margin-top:5px;}
+  .hc .wrow{display:flex;align-items:center;gap:5px;margin-top:5px;}
+  .hc .wt{font-size:10px;color:var(--mid);white-space:nowrap;}
+  .hc .bt{flex:1;height:4px;background:var(--border);border-radius:2px;}
+  .hc .bf{height:100%;border-radius:2px;}
+  .hc .mu{display:flex;gap:6px;margin-top:5px;font-size:9px;color:var(--soft);flex-wrap:wrap;}
+
+  /* CONTROLS */
+  .cbar{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:10px 18px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;box-shadow:var(--sh);}
+  .cg{display:flex;align-items:center;gap:4px;}
+  .cg+.cg{margin-left:10px;padding-left:10px;border-left:1px solid var(--border);}
+  .cl{font-size:10px;font-weight:600;color:var(--soft);text-transform:uppercase;letter-spacing:.6px;margin-right:2px;}
+  .btn{padding:5px 11px;border-radius:7px;border:1.5px solid var(--border);background:transparent;color:var(--mid);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit;}
+  .btn:hover{border-color:var(--base);color:var(--base);background:rgba(37,99,235,.08);}
+  .btn.active{background:var(--base);border-color:var(--base);color:#fff;font-weight:600;}
+  .pw{flex:1;display:flex;align-items:center;gap:8px;margin:0 10px;}
+  .pt{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .pf{height:100%;background:linear-gradient(90deg,var(--base),var(--bull));border-radius:3px;transition:width .1s;}
+  .pl{font-size:10px;color:var(--soft);min-width:160px;}
+  .brun{margin-left:auto;padding:7px 18px;border-radius:8px;border:none;background:var(--base);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;transition:background .15s;}
+  .brun:hover{background:#1d4ed8;}
+  .brun:disabled{background:#cbd5e1;color:var(--soft);cursor:not-allowed;}
+
+  /* CARDS */
+  .card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;box-shadow:var(--sh);}
+  .ctitle{font-size:14px;font-weight:700;}
+  .csub{font-size:11px;color:var(--soft);margin-top:1px;}
+  .chdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:10px;}
+  .leg{display:flex;gap:12px;align-items:center;flex-wrap:wrap;flex-shrink:0;}
+  .li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mid);font-weight:500;}
+  .ll{width:18px;height:3px;border-radius:2px;}
+  .lb{width:13px;height:8px;border-radius:2px;}
+  canvas{display:block;width:100%!important;}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+  .mg{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh);}
+  .mgt{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--soft);padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--border);}
+  .mr{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-top:1px solid #f8fafc;}
+  .mr:first-of-type{border-top:none;}
+  .mn{font-size:11px;color:var(--mid);}
+  .mv{font-size:13px;font-weight:700;}
+  .cb{color:var(--bull)}.cba{color:var(--base)}.cbe{color:var(--bear)}.cp{color:var(--purple)}
+
+  .pt2{width:100%;border-collapse:collapse;font-size:12px;}
+  .pt2 th{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--soft);padding:5px 7px;text-align:center;background:var(--bg);}
+  .pt2 th:first-child{text-align:left;padding-left:12px;}
+  .pt2 td{padding:7px;text-align:center;font-weight:600;border-top:1px solid var(--border);}
+  .pt2 td:first-child{text-align:left;padding-left:12px;font-size:10px;font-weight:700;}
+
+  .acard{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:var(--sh);display:flex;align-items:flex-start;gap:14px;}
+  .pl2{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;}
+  .pr{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--bg);}
+  .pr:last-child{border-bottom:none;}
+  .pd{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
+  .pz{font-family:'Noto Sans SC';font-weight:600;font-size:12px;}
+  .pdt{font-size:9px;color:var(--soft);}
+
+  footer{background:var(--white);border-top:1px solid var(--border);padding:9px 28px;font-size:10px;color:var(--soft);display:flex;justify-content:space-between;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="htitle">Semiconductor Portfolio · Monte Carlo Simulation &nbsp;<span style="font-size:12px;font-weight:500;color:var(--soft)">10 Stocks</span></div>
+    <div class="hsub">Geometric Brownian Motion · Bear / Base / Bull Scenario Comparison · 2026-03-11</div>
+  </div>
+  <div class="hright">
+    <div class="spill"><div class="sl">Total Portfolio</div><div class="sv">¥100,000</div></div>
+    <div class="spill"><div class="sl">Horizon</div><div class="sv" id="hdr-horizon">3 Months</div></div>
+    <div class="badge"><span class="dot"></span><span id="sim-status">Ready</span></div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- HOLDINGS (5+5) -->
+  <div class="hrow" id="hrow1"></div>
+  <div class="hrow" id="hrow2"></div>
+
+  <!-- CONTROLS -->
+  <div class="cbar">
+    <div class="cg">
+      <span class="cl">Horizon</span>
+      <button class="btn" onclick="setBtn(this);horizon=21;document.getElementById('hdr-horizon').textContent='1 Month'">1M</button>
+      <button class="btn active" onclick="setBtn(this);horizon=63;document.getElementById('hdr-horizon').textContent='3 Months'">3M</button>
+      <button class="btn" onclick="setBtn(this);horizon=126;document.getElementById('hdr-horizon').textContent='6 Months'">6M</button>
+      <button class="btn" onclick="setBtn(this);horizon=252;document.getElementById('hdr-horizon').textContent='1 Year'">1Y</button>
+    </div>
+    <div class="cg">
+      <span class="cl">Paths</span>
+      <button class="btn active" onclick="setBtn(this);nPaths=300">300</button>
+      <button class="btn" onclick="setBtn(this);nPaths=800">800</button>
+      <button class="btn" onclick="setBtn(this);nPaths=2000">2000</button>
+    </div>
+    <div class="pw">
+      <div class="pt"><div class="pf" id="pfill" style="width:0%"></div></div>
+      <div class="pl" id="plbl">Press Run to start</div>
+    </div>
+    <button class="brun" id="rbtn" onclick="runSim()">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,1 9,5 1,9"/></svg>
+      Run Simulation
+    </button>
+  </div>
+
+  <!-- MAIN CHART -->
+  <div class="card">
+    <div class="chdr">
+      <div>
+        <div class="ctitle">Portfolio Value — Bear / Base / Bull (三情景叠加)</div>
+        <div class="csub">Median line · 25–75th pct inner band · 5–95th pct outer band · Initial ¥100,000</div>
+      </div>
+      <div class="leg">
+        <div class="li"><div class="ll" style="background:var(--bear)"></div>Bear</div>
+        <div class="li"><div class="ll" style="background:var(--base)"></div>Base</div>
+        <div class="li"><div class="ll" style="background:var(--bull)"></div>Bull</div>
+        <div class="li"><div class="lb" style="background:rgba(37,99,235,.25)"></div>25–75%</div>
+        <div class="li"><div class="lb" style="background:rgba(37,99,235,.10)"></div>5–95%</div>
+      </div>
+    </div>
+    <canvas id="scChart" height="290"></canvas>
+  </div>
+
+  <!-- DIST + DD -->
+  <div class="two">
+    <div class="card">
+      <div class="chdr">
+        <div><div class="ctitle">Terminal Value Distribution</div><div class="csub">Histogram of final portfolio value</div></div>
+        <div class="leg">
+          <div class="li"><div class="lb" style="background:rgba(220,38,38,.6)"></div>Bear</div>
+          <div class="li"><div class="lb" style="background:rgba(37,99,235,.6)"></div>Base</div>
+          <div class="li"><div class="lb" style="background:rgba(22,163,74,.6)"></div>Bull</div>
+        </div>
+      </div>
+      <canvas id="distC" height="175"></canvas>
+    </div>
+    <div class="card">
+      <div class="chdr">
+        <div><div class="ctitle">Max Drawdown Distribution</div><div class="csub">Worst peak-to-trough per path</div></div>
+      </div>
+      <canvas id="ddC" height="175"></canvas>
+    </div>
+  </div>
+
+  <!-- METRICS -->
+  <div class="three">
+    <div class="mg">
+      <div class="mgt">🐻 Bear Scenario</div>
+      <div class="mr"><span class="mn">Expected Final Value</span><span class="mv cbe" id="b-ev">—</span></div>
+      <div class="mr"><span class="mn">Return (annualised)</span><span class="mv cbe" id="b-cagr">—</span></div>
+      <div class="mr"><span class="mn">3M Return</span><span class="mv cbe" id="b-ret">—</span></div>
+      <div class="mr"><span class="mn">VaR 95%</span><span class="mv cbe" id="b-var">—</span></div>
+      <div class="mr"><span class="mn">P(Profit)</span><span class="mv" id="b-pp">—</span></div>
+      <div class="mr"><span class="mn">Avg Max Drawdown</span><span class="mv cbe" id="b-dd">—</span></div>
+      <div class="mr"><span class="mn">Sharpe Ratio</span><span class="mv" id="b-sh">—</span></div>
+    </div>
+    <div class="mg">
+      <div class="mgt">📊 Base Scenario</div>
+      <div class="mr"><span class="mn">Expected Final Value</span><span class="mv cba" id="ba-ev">—</span></div>
+      <div class="mr"><span class="mn">Return (annualised)</span><span class="mv cba" id="ba-cagr">—</span></div>
+      <div class="mr"><span class="mn">3M Return</span><span class="mv cba" id="ba-ret">—</span></div>
+      <div class="mr"><span class="mn">VaR 95%</span><span class="mv cba" id="ba-var">—</span></div>
+      <div class="mr"><span class="mn">P(Profit)</span><span class="mv" id="ba-pp">—</span></div>
+      <div class="mr"><span class="mn">Avg Max Drawdown</span><span class="mv cbe" id="ba-dd">—</span></div>
+      <div class="mr"><span class="mn">Sharpe Ratio</span><span class="mv" id="ba-sh">—</span></div>
+    </div>
+    <div class="mg">
+      <div class="mgt">🐂 Bull Scenario</div>
+      <div class="mr"><span class="mn">Expected Final Value</span><span class="mv cb" id="bu-ev">—</span></div>
+      <div class="mr"><span class="mn">Return (annualised)</span><span class="mv cb" id="bu-cagr">—</span></div>
+      <div class="mr"><span class="mn">3M Return</span><span class="mv cb" id="bu-ret">—</span></div>
+      <div class="mr"><span class="mn">VaR 95%</span><span class="mv cba" id="bu-var">—</span></div>
+      <div class="mr"><span class="mn">P(Profit)</span><span class="mv" id="bu-pp">—</span></div>
+      <div class="mr"><span class="mn">Avg Max Drawdown</span><span class="mv cbe" id="bu-dd">—</span></div>
+      <div class="mr"><span class="mn">Sharpe Ratio</span><span class="mv" id="bu-sh">—</span></div>
+    </div>
+  </div>
+
+  <!-- PERCENTILE TABLE + PIE -->
+  <div class="two">
+    <div class="card">
+      <div class="ctitle" style="margin-bottom:10px">Percentile Outcomes — Terminal Value (¥)</div>
+      <table class="pt2">
+        <thead><tr><th>Scenario</th><th>P5</th><th>P25</th><th>P50 Median</th><th>P75</th><th>P95</th></tr></thead>
+        <tbody>
+          <tr><td class="cbe">Bear</td><td id="bp5">—</td><td id="bp25">—</td><td id="bp50">—</td><td id="bp75">—</td><td id="bp95">—</td></tr>
+          <tr><td class="cba">Base</td><td id="bap5">—</td><td id="bap25">—</td><td id="bap50">—</td><td id="bap75">—</td><td id="bap95">—</td></tr>
+          <tr><td class="cb">Bull</td><td id="bup5">—</td><td id="bup25">—</td><td id="bup50">—</td><td id="bup75">—</td><td id="bup95">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="acard">
+      <canvas id="pieC" width="150" height="150" style="width:150px!important;height:150px!important;flex-shrink:0"></canvas>
+      <div class="pl2" id="pleg"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>⚠ 基于GBM模型，参数为行业估计值，仅供研究参考，不构成投资建议。总投资 ¥100,000 · 无风险利率 2.5%</span>
+  <span>Monte Carlo Portfolio Simulator · © 2026</span>
+</footer>
+
+<script>
+// ─── PORTFOLIO ────────────────────────────────────────────────────────────────
+// Weights from raw position sizes, scaled to ¥100,000
+// Raw: 中芯80@62=4960 | 韦尔50@95=4750 | 兆易90@110=9900 | 卓胜50@72=3600
+//      北方80@410=32800 | 长电50@42=2100 | 圣邦90@148=13320 | 紫光50@58=2900
+//      华天50@14=700 | 通富50@22=1100  → raw total ≈ 76130
+const RAW=[4960,4750,9900,3600,32800,2100,13320,2900,700,1100];
+const RAWT=RAW.reduce((a,b)=>a+b,0);
+const TOTAL=100000;
+
+const STOCKS=[
+  {zh:'中芯国际',en:'SMIC',       shares:80, price:62,  color:'#2563eb',
+   p:{bear:{mu:-.12,s:.55},base:{mu:.08,s:.42},bull:{mu:.22,s:.38}}},
+  {zh:'韦尔股份',en:'Will Semi',  shares:50, price:95,  color:'#16a34a',
+   p:{bear:{mu:-.10,s:.50},base:{mu:.10,s:.44},bull:{mu:.24,s:.40}}},
+  {zh:'兆易创新',en:'GigaDevice', shares:90, price:110, color:'#9333ea',
+   p:{bear:{mu:-.08,s:.52},base:{mu:.12,s:.45},bull:{mu:.28,s:.40}}},
+  {zh:'卓胜微',  en:'Maxscend',   shares:50, price:72,  color:'#ea580c',
+   p:{bear:{mu:-.15,s:.58},base:{mu:.09,s:.48},bull:{mu:.26,s:.44}}},
+  {zh:'北方华创',en:'NAURA',      shares:80, price:410, color:'#0891b2',
+   p:{bear:{mu:-.10,s:.50},base:{mu:.10,s:.40},bull:{mu:.25,s:.36}}},
+  {zh:'长电科技',en:'JCET',       shares:50, price:42,  color:'#be185d',
+   p:{bear:{mu:-.06,s:.42},base:{mu:.14,s:.38},bull:{mu:.30,s:.34}}},
+  {zh:'圣邦股份',en:'SG Micro',   shares:90, price:148, color:'#b45309',
+   p:{bear:{mu:-.14,s:.48},base:{mu:.09,s:.38},bull:{mu:.20,s:.34}}},
+  {zh:'紫光国微',en:'SMIT',       shares:50, price:58,  color:'#4f46e5',
+   p:{bear:{mu:-.12,s:.52},base:{mu:.08,s:.44},bull:{mu:.22,s:.40}}},
+  {zh:'华天科技',en:'HTECH',      shares:50, price:14,  color:'#0f766e',
+   p:{bear:{mu:-.08,s:.46},base:{mu:.12,s:.40},bull:{mu:.28,s:.36}}},
+  {zh:'通富微电',en:'TFME',       shares:50, price:22,  color:'#7c3aed',
+   p:{bear:{mu:-.08,s:.44},base:{mu:.14,s:.40},bull:{mu:.30,s:.36}}},
+].map((s,i)=>({...s, value:RAW[i]/RAWT*TOTAL, weight:RAW[i]/RAWT*100}));
+
+const SCEN=[
+  {key:'bear',lbl:'Bear',col:'#dc2626',bi:'rgba(220,38,38,.18)',bo:'rgba(220,38,38,.07)'},
+  {key:'base',lbl:'Base',col:'#2563eb',bi:'rgba(37,99,235,.18)', bo:'rgba(37,99,235,.07)'},
+  {key:'bull',lbl:'Bull',col:'#16a34a',bi:'rgba(22,163,74,.18)', bo:'rgba(22,163,74,.07)'},
+];
+const RFR=.025;
+let horizon=63,nPaths=300,running=false;
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  renderHoldings(); drawPie(); runSim();
+});
+
+function setBtn(el){
+  el.closest('.cg').querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function renderHoldings(){
+  const h1=document.getElementById('hrow1'), h2=document.getElementById('hrow2');
+  h1.innerHTML=''; h2.innerHTML='';
+  STOCKS.forEach((s,i)=>{
+    const el=document.createElement('div');
+    el.className='hc';
+    el.style.borderLeftColor=s.color;
+    el.innerHTML=`
+      <div class="zh">${s.en}</div>
+      <div class="en">${s.zh}</div>
+      <div class="sh">${s.shares} shares × ¥${s.price} ≈ ¥${Math.round(s.value).toLocaleString()}</div>
+      <div class="amt" style="color:${s.color}">¥${Math.round(s.value).toLocaleString()}</div>
+      <div class="wrow">
+        <span class="wt">${s.weight.toFixed(1)}%</span>
+        <div class="bt"><div class="bf" style="width:${Math.min(s.weight*2.5,100)}%;background:${s.color}"></div></div>
+      </div>
+      <div class="mu">
+        <span>🐻${(s.p.bear.mu*100).toFixed(0)}%</span>
+        <span>📊${(s.p.base.mu*100).toFixed(0)}%</span>
+        <span>🐂${(s.p.bull.mu*100).toFixed(0)}%</span>
+        <span>σ~${(s.p.base.s*100).toFixed(0)}%</span>
+      </div>`;
+    (i<5?h1:h2).appendChild(el);
+  });
+}
+
+// ─── MATH ─────────────────────────────────────────────────────────────────────
+function randn(){
+  let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function simPath(sk,steps){
+  const dt=1/252, path=new Array(steps+1).fill(0);
+  STOCKS.forEach(s=>{
+    const {mu,s:sig}=s.p[sk], w=s.value/TOTAL;
+    let v=1; path[0]+=w;
+    for(let t=1;t<=steps;t++){v*=Math.exp((mu-.5*sig*sig)*dt+sig*Math.sqrt(dt)*randn());path[t]+=w*v;}
+  });
+  return path.map(v=>v*TOTAL);
+}
+function mxDD(path){
+  let pk=path[0],m=0;
+  for(const v of path){if(v>pk)pk=v;const d=(pk-v)/pk;if(d>m)m=d;}
+  return m;
+}
+function pct(arr,p){
+  const s=[...arr].sort((a,b)=>a-b),idx=(p/100)*(s.length-1),lo=Math.floor(idx),hi=Math.ceil(idx);
+  return s[lo]+(s[hi]-s[lo])*(idx-lo);
+}
+function mkBands(paths,steps){
+  const b={p5:[],p25:[],p50:[],p75:[],p95:[]};
+  for(let t=0;t<=steps;t++){
+    const col=paths.map(p=>p[t]);
+    b.p5.push(pct(col,5));b.p25.push(pct(col,25));b.p50.push(pct(col,50));
+    b.p75.push(pct(col,75));b.p95.push(pct(col,95));
+  }
+  return b;
+}
+
+// ─── SIMULATION ───────────────────────────────────────────────────────────────
+async function runSim(){
+  if(running)return;
+  running=true;
+  document.getElementById('rbtn').disabled=true;
+  document.getElementById('sim-status').textContent='Simulating…';
+
+  const res={};let done=0;const tot=SCEN.length*nPaths;
+  for(const sc of SCEN){
+    const paths=[],dds=[];
+    for(let i=0;i<nPaths;i++){
+      const p=simPath(sc.key,horizon);
+      paths.push(p);dds.push(mxDD(p));done++;
+      if(i%50===0){
+        await sleep(0);
+        document.getElementById('pfill').style.width=Math.round(done/tot*100)+'%';
+        document.getElementById('plbl').textContent=`${sc.lbl}: ${i}/${nPaths} (${Math.round(done/tot*100)}%)`;
+      }
+    }
+    const terms=paths.map(p=>p[p.length-1]);
+    const mean=terms.reduce((a,b)=>a+b)/nPaths;
+    const years=horizon/252;
+    const cagr=Math.pow(mean/TOTAL,1/years)-1;
+    const ret3m=mean/TOTAL-1;
+    const p5v=pct(terms,5);
+    const stdR=Math.sqrt(terms.map(v=>v/TOTAL-1).reduce((s,r)=>s+(r-ret3m)**2,0)/nPaths);
+    const sharpe=(cagr-RFR)/(stdR/Math.sqrt(years));
+    res[sc.key]={
+      bands:mkBands(paths,horizon),terms,dds,
+      mean,cagr,ret3m,var95:TOTAL-p5v,
+      probP:terms.filter(v=>v>TOTAL).length/nPaths,
+      avgDD:dds.reduce((a,b)=>a+b)/nPaths,
+      sharpe,
+      p5:p5v,p25:pct(terms,25),p50:pct(terms,50),p75:pct(terms,75),p95:pct(terms,95)
+    };
+  }
+
+  document.getElementById('pfill').style.width='100%';
+  document.getElementById('plbl').textContent=`Done — ${tot} paths simulated`;
+  document.getElementById('sim-status').textContent='Complete ✓';
+
+  updateMetrics(res);
+  drawScenChart(res);
+  drawDist(res);
+  drawDD(res);
+  running=false;
+  document.getElementById('rbtn').disabled=false;
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function fv(n){return n>=10000?'¥'+(n/10000).toFixed(2)+'万':'¥'+n.toFixed(0);}
+function fp(n){return(n*100).toFixed(1)+'%';}
+
+function updateMetrics(res){
+  const map={
+    bear:['b-ev','b-cagr','b-ret','b-var','b-pp','b-dd','b-sh'],
+    base:['ba-ev','ba-cagr','ba-ret','ba-var','ba-pp','ba-dd','ba-sh'],
+    bull:['bu-ev','bu-cagr','bu-ret','bu-var','bu-pp','bu-dd','bu-sh'],
+  };
+  const ptMap={bear:['bp5','bp25','bp50','bp75','bp95'],base:['bap5','bap25','bap50','bap75','bap95'],bull:['bup5','bup25','bup50','bup75','bup95']};
+  SCEN.forEach(sc=>{
+    const r=res[sc.key],[ev,cg,rt,va,pp,dd,sh]=map[sc.key];
+    document.getElementById(ev).textContent=fv(r.mean);
+    document.getElementById(cg).textContent=fp(r.cagr);
+    document.getElementById(rt).textContent=fp(r.ret3m);
+    document.getElementById(va).textContent=fv(r.var95);
+    const ppEl=document.getElementById(pp);
+    ppEl.textContent=fp(r.probP);
+    ppEl.className='mv '+(r.probP>.5?'cb':'cbe');
+    document.getElementById(dd).textContent=fp(r.avgDD);
+    const shEl=document.getElementById(sh);
+    shEl.textContent=r.sharpe.toFixed(2);
+    shEl.className='mv '+(r.sharpe>=1?'cb':r.sharpe>=0?'cba':'cbe');
+    const ids=ptMap[sc.key];
+    [r.p5,r.p25,r.p50,r.p75,r.p95].forEach((v,i)=>document.getElementById(ids[i]).textContent=fv(v));
+  });
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+function drawScenChart(res){
+  const cv=document.getElementById('scChart');
+  const c=cv.getContext('2d');
+  const W=cv.offsetWidth||900,H=290;
+  cv.width=W;cv.height=H;c.clearRect(0,0,W,H);
+
+  const pL=72,pR=52,pT=18,pB=44,iW=W-pL-pR,iH=H-pT-pB;
+  const steps=horizon;
+
+  let mn=Infinity,mx=-Infinity;
+  SCEN.forEach(sc=>{const b=res[sc.key].bands;b.p5.forEach(v=>{if(v<mn)mn=v;});b.p95.forEach(v=>{if(v>mx)mx=v;});});
+  const rng=mx-mn;mn-=rng*.05;mx+=rng*.07;
+
+  const sx=i=>pL+i/steps*iW;
+  const sy=v=>pT+iH-(v-mn)/(mx-mn)*iH;
+
+  // Grid
+  for(let i=0;i<=5;i++){
+    const val=mn+i/5*(mx-mn),y=sy(val);
+    c.strokeStyle='#e2e8f0';c.lineWidth=1;
+    c.beginPath();c.moveTo(pL,y);c.lineTo(W-pR,y);c.stroke();
+    c.fillStyle='#94a3b8';c.font='10px Inter,sans-serif';c.textAlign='right';
+    c.fillText(fv(val),pL-5,y+3);
+  }
+
+  // X ticks (weeks for ≤6M, months for 1Y)
+  const useW=horizon<=126;
+  const units=useW?Math.round(horizon/5):Math.round(horizon/21);
+  const ul=useW?'w':'m';
+  c.fillStyle='#94a3b8';c.font='10px Inter,sans-serif';c.textAlign='center';
+  const nt=Math.min(7,units+1);
+  for(let i=0;i<=nt;i++){
+    const u=Math.round(i/nt*units),x=sx(Math.round(u/units*steps));
+    c.fillText(u===0?'Start':u+ul,x,H-pB+14);
+    c.strokeStyle='#f1f5f9';c.lineWidth=1;
+    c.beginPath();c.moveTo(x,pT);c.lineTo(x,pT+iH);c.stroke();
+  }
+
+  // Initial line
+  const iy=sy(TOTAL);
+  c.strokeStyle='#7c3aed';c.lineWidth=1.5;c.setLineDash([6,4]);
+  c.beginPath();c.moveTo(pL,iy);c.lineTo(W-pR,iy);c.stroke();c.setLineDash([]);
+  c.fillStyle='#7c3aed';c.font='10px Inter,sans-serif';c.textAlign='left';
+  c.fillText('Initial ¥100,000',pL+5,iy-5);
+
+  const idx=Array.from({length:steps+1},(_,i)=>i);
+
+  // Outer bands
+  SCEN.forEach(sc=>{
+    const b=res[sc.key].bands;
+    c.beginPath();
+    idx.forEach(i=>i===0?c.moveTo(sx(i),sy(b.p95[i])):c.lineTo(sx(i),sy(b.p95[i])));
+    [...idx].reverse().forEach(i=>c.lineTo(sx(i),sy(b.p5[i])));
+    c.closePath();c.fillStyle=sc.bo;c.fill();
+  });
+  // Inner bands
+  SCEN.forEach(sc=>{
+    const b=res[sc.key].bands;
+    c.beginPath();
+    idx.forEach(i=>i===0?c.moveTo(sx(i),sy(b.p75[i])):c.lineTo(sx(i),sy(b.p75[i])));
+    [...idx].reverse().forEach(i=>c.lineTo(sx(i),sy(b.p25[i])));
+    c.closePath();c.fillStyle=sc.bi;c.fill();
+  });
+  // Medians
+  SCEN.forEach(sc=>{
+    const b=res[sc.key].bands;
+    c.beginPath();
+    idx.forEach(i=>i===0?c.moveTo(sx(i),sy(b.p50[i])):c.lineTo(sx(i),sy(b.p50[i])));
+    c.strokeStyle=sc.col;c.lineWidth=2.5;c.stroke();
+    c.fillStyle=sc.col;c.font='bold 11px Inter,sans-serif';c.textAlign='left';
+    c.fillText(sc.lbl,W-pR+3,sy(b.p50[steps])+4);
+  });
+
+  c.strokeStyle='#cbd5e1';c.lineWidth=1.5;
+  c.beginPath();c.moveTo(pL,pT);c.lineTo(pL,pT+iH);c.lineTo(pL+iW,pT+iH);c.stroke();
+}
+
+function drawDist(res){
+  const cv=document.getElementById('distC');
+  const c=cv.getContext('2d');
+  const W=cv.offsetWidth||420,H=175;
+  cv.width=W;cv.height=H;c.clearRect(0,0,W,H);
+  const pL=58,pR=12,pT=12,pB=36,iW=W-pL-pR,iH=H-pT-pB,BINS=30;
+  let all=[];SCEN.forEach(sc=>all.push(...res[sc.key].terms));
+  const mn=Math.min(...all),mx=Math.max(...all),bw=(mx-mn)/BINS;
+  let mc=0;
+  const ab=SCEN.map(sc=>{
+    const bins=new Array(BINS).fill(0);
+    res[sc.key].terms.forEach(v=>{const bi=Math.min(Math.floor((v-mn)/bw),BINS-1);bins[bi]++;});
+    mc=Math.max(mc,...bins);return bins;
+  });
+  const bwx=iW/BINS;
+  SCEN.forEach((sc,si)=>{
+    const cl=sc.key==='bear'?'rgba(220,38,38,.6)':sc.key==='base'?'rgba(37,99,235,.6)':'rgba(22,163,74,.6)';
+    ab[si].forEach((cnt,bi)=>{
+      const bh=(cnt/mc)*iH,x=pL+bi*bwx,y=pT+iH-bh;
+      c.fillStyle=cl;c.fillRect(x+si*.7,y,bwx-1,bh);
+    });
+  });
+  c.strokeStyle='#cbd5e1';c.lineWidth=1.5;
+  c.beginPath();c.moveTo(pL,pT);c.lineTo(pL,pT+iH);c.lineTo(pL+iW,pT+iH);c.stroke();
+  c.fillStyle='#94a3b8';c.font='10px Inter,sans-serif';c.textAlign='center';
+  [mn,(mn+mx)/2,mx].forEach(v=>c.fillText(fv(v),pL+(v-mn)/(mx-mn)*iW,H-pB+13));
+  c.fillStyle='#64748b';c.fillText('Terminal Portfolio Value',pL+iW/2,H-pB+26);
+  c.save();c.translate(13,pT+iH/2);c.rotate(-Math.PI/2);c.fillText('Frequency',0,0);c.restore();
+}
+
+function drawDD(res){
+  const cv=document.getElementById('ddC');
+  const c=cv.getContext('2d');
+  const W=cv.offsetWidth||420,H=175;
+  cv.width=W;cv.height=H;c.clearRect(0,0,W,H);
+  const pL=42,pR=12,pT=12,pB=36,iW=W-pL-pR,iH=H-pT-pB,BINS=28;
+  let all=[];SCEN.forEach(sc=>all.push(...res[sc.key].dds.map(d=>d*100)));
+  const mn=0,mx=Math.min(100,Math.ceil(Math.max(...all)/5)*5+5);
+  const bw=(mx-mn)/BINS;let mc=0;
+  const ab=SCEN.map(sc=>{
+    const bins=new Array(BINS).fill(0);
+    res[sc.key].dds.map(d=>d*100).forEach(v=>{const bi=Math.min(Math.floor((v-mn)/bw),BINS-1);bins[bi]++;});
+    mc=Math.max(mc,...bins);return bins;
+  });
+  const bwx=iW/BINS;
+  SCEN.forEach((sc,si)=>{
+    const cl=sc.key==='bear'?'rgba(220,38,38,.6)':sc.key==='base'?'rgba(37,99,235,.6)':'rgba(22,163,74,.6)';
+    ab[si].forEach((cnt,bi)=>{
+      const bh=(cnt/mc)*iH,x=pL+bi*bwx,y=pT+iH-bh;
+      c.fillStyle=cl;c.fillRect(x+si*.7,y,bwx-1,bh);
+    });
+  });
+  c.strokeStyle='#cbd5e1';c.lineWidth=1.5;
+  c.beginPath();c.moveTo(pL,pT);c.lineTo(pL,pT+iH);c.lineTo(pL+iW,pT+iH);c.stroke();
+  c.fillStyle='#94a3b8';c.font='10px Inter,sans-serif';c.textAlign='center';
+  [0,Math.round(mx/2),mx].forEach(v=>c.fillText(v+'%',pL+(v-mn)/(mx-mn)*iW,H-pB+13));
+  c.fillStyle='#64748b';c.fillText('Max Drawdown (%)',pL+iW/2,H-pB+26);
+}
+
+function drawPie(){
+  const cv=document.getElementById('pieC');
+  const c=cv.getContext('2d');
+  const cx=75,cy=75,r=65,ir=28;let a=-Math.PI/2;
+  STOCKS.forEach(s=>{
+    const sl=(s.weight/100)*2*Math.PI;
+    c.beginPath();c.moveTo(cx,cy);c.arc(cx,cy,r,a,a+sl);c.closePath();
+    c.fillStyle=s.color;c.fill();
+    c.strokeStyle='#fff';c.lineWidth=1.5;c.stroke();
+    a+=sl;
+  });
+  c.beginPath();c.arc(cx,cy,ir,0,2*Math.PI);c.fillStyle='#fff';c.fill();
+  c.fillStyle='#1e293b';c.font='bold 10px Inter,sans-serif';c.textAlign='center';
+  c.fillText('A-share',cx,cy-2);c.font='9px Inter,sans-serif';c.fillStyle='#94a3b8';c.fillText('Semi',cx,cy+10);
+
+  document.getElementById('pleg').innerHTML=STOCKS.map(s=>`
+    <div class="pr">
+      <div class="pd" style="background:${s.color}"></div>
+      <div><div class="pz">${s.en}</div><div class="pdt">${s.weight.toFixed(1)}% · ¥${Math.round(s.value).toLocaleString()}</div></div>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>
