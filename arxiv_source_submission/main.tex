@@ -168,36 +168,214 @@ directions.
 \section{Related Work}
 \label{sec:related}
 
-Multi-agent systems have been extensively studied for financial
-applications, with research spanning trading simulation, market
-microstructure analysis, and automated portfolio management. Early work
-focused on agent-based modelling for understanding emergent market
-behaviour, while recent research has shifted toward production systems
-for algorithmic trading and risk management.
+Research at the intersection of large language models and financial
+automation has grown rapidly across four interconnected dimensions:
+multi-agent system design for investment tasks, LLM alignment and
+sycophantic drift, AI-driven analysis of the China A-share market, and
+portfolio simulation methodology. This section reviews the most relevant
+prior work in each area and situates the present paper within that
+landscape.
 
-Zhao et al. \cite{zhao2025alphaagents} explore how multi-agent coordination across
-a valuation agent, a fundamental-analysis agent, and a sentiment-analysis
-agent can improve 10-Q and 10-K driven portfolio construction.
-An et al. \cite{an2024finverse} describe FinVerse, an agent with over 800~APIs
-capable of comprehensive macroeconomic financial-market analysis.
-Yang et al. \cite{yang2023fingpt} built FinGPT, an open-source LLM specialised for
-the financial domain. FinGPT employs retrieval-augmented generation (RAG)
-to reduce hallucination and incorporate real-time data, outperforming
-FinBERT and LLaMA on standard financial-domain benchmarks.
+\subsection{Multi-Agent Systems for Financial Applications}
 
-More recently, Hu et al. \cite{hu2026xmemory} argue that standard RAG is
-ill-suited for agent memory because agent dialogues are bounded and
-contain overlapping or redundant information. They introduce xMemory,
-which disentangles raw memories into semantic components organised
-hierarchically, rather than relying on simple similarity matching.
-This architecture directly addresses the session-state limitations we
-observe in Section~\ref{sec:discussion}.
+Early agent-based models in finance focused primarily on understanding
+emergent market behaviour rather than deploying production systems. That
+emphasis has shifted substantially: recent work constructs agentic
+pipelines that mirror the division of labour found in real investment
+teams, decomposing research, execution, and risk oversight into distinct
+specialised roles.
 
-For building multi-agent workflows, a hierarchical rather than parallel
-structure has been shown to reduce cascading failures and agent-objective
-conflicts~\cite{zhao2025alphaagents}. Our work builds on this insight
-through explicit hierarchical coordination and cloud-based fault
-isolation.
+Zhao et al.\ \cite{zhao2025alphaagents} demonstrate how coordinating a
+valuation agent, a fundamental-analysis agent, and a sentiment-analysis
+agent over SEC 10-Q and 10-K filings improves portfolio construction
+quality. Their finding that hierarchical rather than flat coordination
+reduces cascading failures and agent-objective conflicts is directly
+relevant to our own architectural choices. Complementing this,
+An et al.\ \cite{an2024finverse} introduce FinVerse, an agent endowed
+with more than 800~APIs that supports comprehensive macroeconomic and
+cross-market analysis, highlighting the data-integration demands that
+production-grade systems must satisfy.
+
+Xiao et al.\ \cite{xiao2025tradingagents} propose TradingAgents, a
+framework explicitly modelled on the organisational dynamics of a
+trading firm. Specialised LLM-powered agents fill roles analogous to
+fundamental analyst, sentiment analyst, technical analyst, and risk
+manager. A pair of bull and bear researcher agents debate market
+conditions, and a portfolio manager synthesises their outputs.
+Experiments run over the first quarter of 2024 show improvements in
+cumulative return, Sharpe ratio, and maximum drawdown relative to
+single-agent baselines, underscoring the value of structured internal
+debate and role differentiation. The present paper pursues a similar
+role-based decomposition but operates in the underexplored China A-share
+context rather than the US equities environment where most comparable
+systems have been evaluated.
+
+Building on a bottom-up manager--analyst paradigm, Li et
+al.\ \cite{li2026expertteam} assign four categories of specialist
+agent---quantitative, qualitative, news, and technical---and aggregate
+their outputs hierarchically toward a portfolio manager. Evaluated over
+a twenty-seven-month out-of-sample window through November 2025, that
+system provides one of the most temporally extensive real-world
+backtests in the literature, and highlights look-ahead bias as a
+critical methodological risk when LLMs are trained on historical
+financial data. Our system, evaluated under hackathon time constraints,
+does not yet address look-ahead bias directly, which we flag as a
+priority for future work.
+
+For open-source financial LLMs, Yang et al.\ \cite{yang2023fingpt}
+build FinGPT, which uses retrieval-augmented generation (RAG) to reduce
+hallucination and incorporate real-time data, outperforming FinBERT and
+LLaMA on standard financial-domain benchmarks. More recently,
+Hu et al.\ \cite{hu2026xmemory} argue that standard RAG is ill-suited
+for agent memory because agent dialogues are bounded and contain
+overlapping or redundant information. Their xMemory architecture
+disentangles raw memories into semantic components organised
+hierarchically rather than relying on flat similarity matching, and
+directly addresses the session-state limitations we document in
+Section~\ref{sec:discussion}.
+
+A parallel line of inquiry examines portfolio risk enforcement within
+multi-agent frameworks. Systems such as FinCon and HedgeAgents solve
+constrained mean-variance problems and enforce maximum drawdown and
+Conditional Value-at-Risk thresholds dynamically, treating risk limits
+as hard constraints that agents may not override. The present paper
+documents precisely the failure mode that arises when such hard
+constraints are absent, providing quantified evidence of the cost.
+
+\subsection{LLM Alignment and Sycophantic Drift}
+
+The tendency of large language models to prioritise user approval over
+factual correctness or rule adherence---a phenomenon widely termed
+\textit{sycophancy}---has received growing theoretical and empirical
+scrutiny. Sharma et al.\ \cite{sharma2024sycophancy} provide an early
+systematic characterisation, demonstrating across model families that
+LLMs reliably shift their expressed positions when users push back, even
+when the model's original response was correct. This basic result
+establishes the behavioural baseline against which subsequent work, and
+our own empirical observation, should be interpreted.
+
+Malmqvist \cite{malmqvist2024sycophancy} provides a technical survey of
+sycophancy in LLMs, cataloguing its causes, impacts, and mitigation
+strategies. The survey examines relationships between sycophancy and
+related phenomena such as hallucination and bias, and evaluates
+approaches including improved training data curation, novel fine-tuning
+methods, post-deployment control mechanisms, and modified decoding
+strategies. A central conclusion---that sycophancy is not a peripheral
+quirk but a systematic alignment failure with direct implications for
+safe deployment---applies with particular force in high-stakes financial
+advisory settings.
+
+Mechanistic interpretability work has begun to illuminate the internal
+structure of sycophantic behaviour. Recent work decomposes sycophancy
+into sycophantic agreement and sycophantic praise, contrasting both with
+genuine agreement, and shows that these behaviours are encoded along
+distinct linear directions in latent space that can be independently
+amplified or suppressed \cite{cincynlp2025disentangle}. This structural
+finding suggests that targeted interventions are possible---blunt
+mitigations risk eroding legitimate responsiveness while leaving harmful
+deference untouched---and informs the type of remediation strategies
+discussed in Section~\ref{subsec:continuity}.
+
+The connection between sycophancy and reinforcement learning from human
+feedback (RLHF) is now well established. Optimising for immediate user
+approval during post-training causes models to prioritise agreement over
+truthfulness, a form of preference overfitting that persists at
+deployment time \cite{personalisationsycophancy2024}. These dynamics are
+precisely what we observe in our alignment-failure case study: the agent
+learns, within a single multi-turn session, to treat the $S \geq 60$
+threshold as a negotiable default rather than a hard rule.
+
+Sycophantic drift has been shown to cause serious adverse effects in
+sensitive domains. In the medical domain, frontier LLMs show initial
+compliance rates approaching 100\% when users submit illogical requests,
+prioritising helpfulness over factual correctness \cite{bitterman2025sycophancy}.
+The financial domain presents analogous risks, as our Portfolio~B case
+study demonstrates. Multi-turn interaction exacerbates the problem:
+research on argument-driven sycophancy shows that LLMs shift their
+positions substantially more in multi-turn settings than in single-turn
+settings \cite{dohnany2025argument}. This multi-turn amplification
+directly explains the pattern we document: the agent initially presents
+the rules-compliant Portfolio~A correctly, but yields to user pressure
+within one to three follow-up turns.
+
+\subsection{AI-Driven Analysis of the China A-Share Market}
+
+The China A-share market differs structurally from the US equity markets
+on which most LLM-based investment research has been conducted. With
+retail investors accounting for more than 60\% of total stock turnover
+\cite{zheng2025sentiment}, the market is characterised by
+sentiment-driven noise trading, policy responsiveness, and recurring
+event-driven dislocations in which asset prices can decouple sharply
+from fundamental value. These features create both distinctive
+opportunities and distinctive risks for agent-based automation.
+
+Research on Chinese financial text sentiment underscores a practical
+complication: the dominant LLMs have been trained overwhelmingly on
+English corpora, making the transferability of sentiment extraction
+techniques to Chinese uncertain. Studies applying LLMs to Chinese
+financial news demonstrate that language-specific pre-training and
+domain knowledge chain-of-thought (DK-CoT) prompting can substantially
+improve sentiment analysis accuracy on Chinese-language sources such as
+the Baidu Stock Market platform \cite{springer2025dkcot}. The
+LLM-derived sentiment scores produced through such approaches have been
+shown to predict weekly stock-return cross-sections in A-share data,
+with high-sentiment quintiles exhibiting meaningful short-term return
+differentials \cite{zheng2025sentiment}.
+
+Deep learning methods applied to tick-level high-frequency A-share data
+reveal three structural characteristics embedded in order flow:
+nonlinearity, intertemporal stability, and path dependence
+\cite{yu2025priceformation}. These properties are notably absent from
+the macroeconomic indicator framework used in our macro-analysis agent.
+The finding that a universal model trained on multiple stocks
+consistently outperforms stock-specific models out-of-sample suggests
+that cross-stock information sharing may improve our fundamental-analysis
+agent's scoring generalisability in future iterations.
+
+Beyond quantitative approaches, the A-share market's pronounced policy
+sensitivity creates a need for macroeconomic regime detection of the
+kind our macro-analysis agent attempts. Industrial policy announcements,
+changes to money-supply aggregates, and regulatory interventions
+routinely generate sector-level repricing events that dwarf idiosyncratic
+fundamental movements. The macro-analysis agent's classification of
+market regimes using money supply as the primary indicator is therefore
+well motivated by the A-share literature, even if the data sources
+available during the hackathon limited the fidelity of retrieval.
+
+\subsection{Portfolio Simulation and Risk Quantification}
+
+Monte Carlo simulation using Geometric Brownian Motion (GBM) is the
+standard framework for probabilistic portfolio risk assessment. Under
+GBM, price paths are generated by a drift-plus-diffusion process
+parameterised by annualised drift $\mu$ and volatility $\sigma$,
+yielding a log-normal distribution of terminal values. This allows
+portfolio managers to estimate the probability distribution of future
+outcomes, identify tail risks, and compute canonical risk metrics such
+as Value-at-Risk (VaR) and Conditional VaR (CVaR) without requiring
+closed-form solutions \cite{simsek2023montecarlo}.
+
+The VaR at the 95th percentile---the maximum expected loss that will
+not be exceeded in 95\% of simulated scenarios---is the primary risk
+metric used to compare Portfolio~A and Portfolio~B in this paper.
+Monte Carlo simulation generates this quantity by running large numbers
+of path simulations and reading off the terminal value distribution
+percentile, a procedure that remains highly valuable despite known
+criticisms regarding underestimation of rare ``black swan'' events.
+
+Known limitations of GBM are directly relevant to interpreting the
+results in Section~\ref{sec:results}. GBM assumes constant drift and
+volatility, whereas real markets exhibit volatility clustering, fat
+tails, and regime changes. Gaussian Mixture Model (GMM) extensions
+relax the normality assumption and improve VaR estimation accuracy
+under stress conditions, as validated by Christoffersen back-testing
+\cite{gmm2021var}. Portfolio correlation is a further limitation: GBM
+treats stocks as independent unless a Cholesky decomposition of the
+correlation matrix is imposed. In practice, A-share semiconductor
+equities are highly correlated, particularly under macroeconomic stress,
+meaning that our independent-path simulations likely understate joint
+drawdown risk. We flag both issues explicitly in
+Section~\ref{sec:risk} and treat the GBM results as conservative
+scenario benchmarks rather than precise forecasts.
 
 On the cloud infrastructure side, Tencent Cloud has developed a
 comprehensive financial-services ecosystem optimised for low-latency
@@ -714,6 +892,7 @@ of system outputs, limiting deployment suitability beyond a research
 prototype.
 
 \subsection{Lack of Workflow Continuity and Sustainable LLM Compliance}
+\label{subsec:continuity}
 
 Perhaps the most critical limitation observed during testing was the
 inability of the foundational model to maintain consistent adherence to
@@ -725,7 +904,7 @@ manipulation, progressively relaxing safety boundaries and scoring
 criteria in response to user pressure. This behaviour is consistent with
 the broader LLM-alignment literature: autoregressive models are known to
 prioritise user satisfaction over pre-defined rule adherence in the
-absence of robust reinforcement mechanisms~\cite{yang2023fingpt}.
+absence of robust reinforcement mechanisms~\cite{sharma2024sycophancy,malmqvist2024sycophancy}.
 
 \subsubsection*{The Compliance Failure: From Portfolio~A to Portfolio~B}
 
@@ -830,7 +1009,7 @@ to portfolio diversification relative to human advisors.
 informational purposes only. Nothing herein constitutes investment
 advice.}
 
-\begin{thebibliography}{4}
+\begin{thebibliography}{13}
 
 \bibitem{zhao2025alphaagents}
 \textbf{Zhao, Y., Chen, R., Li, Z., \& Wang, M.\ (2025).}
@@ -851,6 +1030,74 @@ arXiv preprint. \url{https://doi.org/10.48550/arXiv.2306.06031}
 \textbf{Hu, Z., Zhu, Q., Yan, H., He, Y., \& Gui, L.\ (2026).}
 \textit{Beyond RAG for agent memory: Retrieval by decoupling and aggregation}.
 arXiv preprint. \url{https://doi.org/10.48550/arXiv.2602.02007}
+
+\bibitem{xiao2025tradingagents}
+\textbf{Xiao, Y., Sun, E., Luo, D., \& Wang, W.\ (2025).}
+\textit{TradingAgents: Multi-agents LLM financial trading framework}.
+arXiv preprint. \url{https://doi.org/10.48550/arXiv.2412.20138}
+
+\bibitem{li2026expertteam}
+\textbf{Li, J., et al.\ (2026).}
+\textit{Toward expert investment teams: A multi-agent LLM system with fine-grained trading tasks}.
+arXiv preprint. \url{https://arxiv.org/abs/2602.23330}
+
+\bibitem{malmqvist2024sycophancy}
+\textbf{Malmqvist, L.\ (2024).}
+\textit{Sycophancy in large language models: Causes and mitigations}.
+arXiv preprint. \url{https://doi.org/10.48550/arXiv.2411.15287}
+
+\bibitem{sharma2024sycophancy}
+\textbf{Sharma, M., et al.\ (2024).}
+\textit{Towards understanding sycophancy in language models}.
+In \textit{Proceedings of ICLR 2024}.
+
+\bibitem{cincynlp2025disentangle}
+\textbf{Anonymous.\ (2025).}
+\textit{Sycophancy is not one thing: Causal separation of sycophantic behaviors in LLMs}.
+Submitted to ICLR 2026. \url{https://openreview.net/forum?id=d24zTCznJu}
+
+\bibitem{personalisationsycophancy2024}
+\textbf{Anonymous.\ (2024).}
+\textit{Personalization methods should address sycophancy}.
+arXiv preprint. \url{https://personalization-sycophancy.github.io/assets/paper.pdf}
+
+\bibitem{bitterman2025sycophancy}
+\textbf{Bitterman, D.~S., et al.\ (2025).}
+\textit{When helpfulness backfires: LLMs and the risk of false medical information due to sycophantic behavior}.
+\textit{npj Digital Medicine}, 8, 605. \url{https://doi.org/10.1038/s41746-025-02008-z}
+
+\bibitem{dohnany2025argument}
+\textbf{Dohn\'{a}ny, J., et al.\ (2025).}
+\textit{Argument driven sycophancy in large language models}.
+In \textit{Findings of EMNLP 2025}. \url{https://aclanthology.org/2025.findings-emnlp.1241}
+
+\bibitem{zheng2025sentiment}
+\textbf{Zheng, H.\ (2025).}
+\textit{Lagged retail sentiment rankings and weekly stock return predictability in China A-shares}.
+NYU Shanghai Honors Thesis.
+
+\bibitem{springer2025dkcot}
+\textbf{Anonymous.\ (2025).}
+\textit{Leveraging large language models as news sentiment predictors in stock markets: A knowledge-enhanced strategy}.
+\textit{Discover Computing}. \url{https://doi.org/10.1007/s10791-025-09573-7}
+
+\bibitem{yu2025priceformation}
+\textbf{Yu, B., et al.\ (2025).}
+\textit{Ascertaining price formation in financial markets with machine learning: Evidence from Chinese stocks}.
+\textit{Pacific-Basin Finance Journal}, 91, 102686.
+\url{https://doi.org/10.1016/j.pacfin.2025.102686}
+
+\bibitem{simsek2023montecarlo}
+\textbf{Simsek, K.\ (2023).}
+\textit{Monte Carlo simulation in financial modeling}.
+\textit{The Journal of Portfolio Management}, September 2023.
+\url{https://doi.org/10.3905/pa2024pa607}
+
+\bibitem{gmm2021var}
+\textbf{Maz\^{a}heri, B., et al.\ (2021).}
+\textit{Portfolio value-at-risk and expected-shortfall using an efficient simulation approach based on Gaussian Mixture Model}.
+\textit{Mathematics and Computers in Simulation}, 190, 1--20.
+\url{https://doi.org/10.1016/j.matcom.2021.05.028}
 
 \end{thebibliography}
 
